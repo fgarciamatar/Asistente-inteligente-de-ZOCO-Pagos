@@ -151,19 +151,18 @@ create table documents (
 
 Es la que consulta el nodo Vector Store de n8n.
 
-```sql
-create or replace function match_documents (
-  query_embedding vector(3072),
-  match_count int default null,
-  filter jsonb default '{}'
+create or replace function public.match_documents (
+  query_embedding vector,
+  match_count integer default null,
+  filter jsonb default '{}'::jsonb
 ) returns table (
   id bigint,
   content text,
   metadata jsonb,
-  similarity float
+  similarity double precision
 )
 language plpgsql
-as $$
+as $function$
 #variable_conflict use_column
 begin
   return query
@@ -177,8 +176,7 @@ begin
   order by documents.embedding <=> query_embedding
   limit match_count;
 end;
-$$;
-```
+$function$;
 
 **2.3 Tablas de observabilidad**
 
