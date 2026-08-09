@@ -29,7 +29,7 @@ del modelo que responde. Los agentes, que además ejecutan herramientas y
 razonan sobre el contexto recuperado, sí usan el modelo mayor.
 
 ## Diagrama de Arquitectura
-
+```mermaid
 flowchart LR
     subgraph CANALES["Canales de entrada"]
         CH[Chat web]
@@ -68,3 +68,4 @@ flowchart LR
     GEM -.->|LLM + embeddings| W1
     GEM -.->|LLM| W2
     GEM -.->|LLM| W3
+```
