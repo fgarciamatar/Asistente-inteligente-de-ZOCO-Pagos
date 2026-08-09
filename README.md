@@ -149,8 +149,10 @@ create table documents (
 
 **2.2 Función de búsqueda por similitud**
 
-Es la que consulta el nodo Vector Store de n8n.
+Es la que consulta el nodo Vector Store de n8n para recuperar los fragmentos
+más parecidos a la pregunta del usuario.
 
+```sql
 create or replace function public.match_documents (
   query_embedding vector,
   match_count integer default null,
@@ -177,6 +179,15 @@ begin
   limit match_count;
 end;
 $function$;
+```
+
+El parámetro `query_embedding` se declara sin dimensión fija: la restricción
+la impone la columna `embedding` de la tabla, así que cambiar de modelo de
+embeddings sólo requiere recrear la tabla, no la función.
+
+El operador `<=>` calcula distancia coseno; `1 - distancia` la convierte en
+similitud, donde 1 es coincidencia exacta. El parámetro `filter` permite
+acotar la búsqueda por metadatos (por ejemplo, sólo chunks de una URL).
 
 **2.3 Tablas de observabilidad**
 
