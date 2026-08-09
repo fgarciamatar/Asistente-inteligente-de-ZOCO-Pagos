@@ -401,7 +401,7 @@ desde el `Disparador Manual`.
 
 ### Requisitos adicionales
 
-Se pedían 3. Implementados 6:
+Se pedían 3. Implemente 6:
 
 | Requisito | Implementación |
 |---|---|
@@ -412,8 +412,7 @@ Se pedían 3. Implementados 6:
 | Métricas de consultas | Tabla `conversaciones` + agente text-to-SQL en Telegram |
 | Webhook/API | Endpoint POST que acepta `chatInput` y `sessionId` y devuelve JSON |
 
-No implementados: panel simple de conversaciones (cubierto parcialmente por la
-tabla `conversaciones` y el agente de métricas) y evaluación automática de
+No implemente: panel simple de conversaciones  y evaluación automática de
 respuestas.
 
 ### Caso incómodo
