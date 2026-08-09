@@ -181,13 +181,6 @@ end;
 $function$;
 ```
 
-El parámetro `query_embedding` se declara sin dimensión fija: la restricción
-la impone la columna `embedding` de la tabla, así que cambiar de modelo de
-embeddings sólo requiere recrear la tabla, no la función.
-
-El operador `<=>` calcula distancia coseno; `1 - distancia` la convierte en
-similitud, donde 1 es coincidencia exacta. El parámetro `filter` permite
-acotar la búsqueda por metadatos (por ejemplo, sólo chunks de una URL).
 
 **2.3 Tablas de observabilidad**
 
