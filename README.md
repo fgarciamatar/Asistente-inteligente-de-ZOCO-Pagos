@@ -409,16 +409,7 @@ desde el `Disparador Manual`.
 ## Manejo de errores
 
 Dos capas independientes, con destinatarios distintos.
-
-**Hacia el usuario.** Los agentes tienen `On Error → Continue (using error
-output)`: ante un fallo del modelo o de una herramienta, la ejecución sigue
-por una rama que devuelve un mensaje claro con el contacto de WhatsApp, en
-lugar de dejar la consulta sin respuesta. Los nodos de registro
-(`Registrar Consulta`, `Derivar a asesor`) usan `Continue (using regular
-output)`: si Supabase no responde se pierde el log, pero nunca la respuesta
-al usuario.
-
-**Hacia el operador.** Un cuarto workflow con un `Error Trigger` recibe los
+Un cuarto workflow con un `Error Trigger` recibe los
 fallos de los otros tres y notifica por Telegram con el nombre del workflow,
 el nodo que falló y el mensaje de error.
 
