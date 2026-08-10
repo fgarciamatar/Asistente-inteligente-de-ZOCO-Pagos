@@ -1,0 +1,1157 @@
+{
+  "name": "Agente Conversacional",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1968,
+        16
+      ],
+      "id": "0acf30ed-accb-4e06-adce-d070e9e370ca",
+      "name": "When chat message received",
+      "webhookId": "f495f51b-cdfa-4524-a231-705e2b5bf813"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Sos el Asistente de ZOCO Pagos. Respondés dudas comerciales, técnicas\ny operativas sobre sus productos y servicios.\n\n## Qué hacer según el mensaje\n\n- Saludo o cortesía sin consulta → presentate en una línea y preguntá\n  en qué ayudar. Sin herramientas.\n- Tema ajeno a ZOCO y medios de pago → aclarás que solo ayudás con ZOCO.\n  Sin herramientas.\n- Consulta sobre ZOCO → llamá SIEMPRE a buscar_informacion_zoco antes\n  de responder.\n\n## Fuentes\n\nRespondé solo con lo que devuelva buscar_informacion_zoco. Nunca uses\nconocimiento propio sobre POS, fintech ni competidores.\n\nCerrá cada respuesta con [Fuente: URL], tomando la URL de los metadatos\ndel fragmento usado.\n\n## Costos\n\nNunca calcules ni confirmes un monto, comisión o neto para el caso del\nusuario, aunque te dé todos los datos. Los valores del simulador son de\ndemostración: no incluyen impuestos ni retenciones y no son las\ncondiciones reales del comercio.\n\nAnte una consulta de costos: explicá de qué depende (medio de pago, plan\nde acreditación, cuotas, rubro, promociones y normativa vigente), aclarás\nque no podés dar una cifra exacta, y derivá al simulador y a un asesor.\n\n## Si no encontrás la información\n\n1. Decilo con claridad: no está en las fuentes oficiales de ZOCO.\n2. Llamá a derivar_a_asesor para registrar el caso.\n3. Ofrecé WhatsApp https://wa.me/5493813545650 o\n   https://www.zocopagos.com/pagos/contactanos\n\n## Tono\n\nEspañol rioplatense, profesional y breve. Usá el historial para resolver\nreferencias (\"¿y cuánto cuesta?\" se refiere a lo último que se habló).",
+          "maxIterations": 5,
+          "returnIntermediateSteps": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -544,
+        -48
+      ],
+      "id": "d4c5e516-d81a-4d1b-bfbd-00c52f828e6c",
+      "name": "Agente",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Parametrizacion chatInput').all()[0].json.sessionId }}",
+        "contextWindowLength": 4
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -528,
+        -304
+      ],
+      "id": "e4fab530-a836-424a-ba08-46df4e2ecb96",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "temperature": 0.2,
+          "safetySettings": {
+            "values": [
+              {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -672,
+        160
+      ],
+      "id": "7576782f-bd19-436c-8abc-693827555435",
+      "name": "Google Gemini Chat Model",
+      "notesInFlow": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PNKux6VMYdXM52ti",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-001"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -544,
+        368
+      ],
+      "id": "932b2db7-8abb-4cd9-89f8-87ac4357ad92",
+      "name": "Embeddings Google Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PNKux6VMYdXM52ti",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "USO OBLIGATORIO Y EXCLUSIVO. Contiene toda la base de conocimiento oficial, preguntas frecuentes, costos, QR y beneficios de ZOCO Pagos. Debes llamarla siempre.",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "topK": 8,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        -544,
+        160
+      ],
+      "id": "bbe0f33a-d9e2-48cc-8edf-8075add2d2e3",
+      "name": "buscar_informacion_zoco",
+      "credentials": {
+        "supabaseApi": {
+          "id": "6Zs47pHzaq5HIG5t",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputText": "={{ $json.chatInput }}",
+        "categories": {
+          "categories": [
+            {
+              "category": "consultas",
+              "description": "Consultas sobre el producto y la empresa: qué es el POS, cómo funciona, medios de pago, tarjetas, QR, contactless, conectividad, requisitos para solicitarlo, monotributistas, beneficios, y datos institucionales de ZOCO (dónde está, quiénes son, contacto). Ejemplos: \"¿necesito internet?\", \"¿qué tarjetas acepta?\", \"¿cómo pido un POS?\", \"¿dónde queda ZOCO?\". NO incluye saludos ni consultas de costos."
+            },
+            {
+              "category": "precios",
+              "description": "Consultas sobre dinero: costos, comisiones, tasas, cuotas, plazos de acreditación, liquidaciones, cuánto se cobra o cuánto queda neto por una venta. Ejemplos: \"¿cuánto sale?\", \"¿qué comisión me cobran?\", \"¿en cuánto me acreditan?\", \"¿cuánto recibo por $100.000 en 6 cuotas?\"."
+            },
+            {
+              "category": "humano",
+              "description": "El usuario pide explícitamente hablar con una persona, un asesor, un vendedor o soporte; quiere hacer un reclamo; expresa frustración con el asistente; o necesita una gestión sobre su propia cuenta o contrato que requiere intervención humana. Ejemplos: \"quiero hablar con alguien\", \"pasame con un humano\", \"esto no me sirve\", \"necesito el estado de mi cuenta\", \"no me acreditaron un pago\", \"quiero dar de baja el servicio\"."
+            },
+            {
+              "category": "saludo",
+              "description": "El mensaje es únicamente un saludo, una despedida o una cortesía, sin ninguna consulta concreta. Ejemplos: \"hola\", \"buenas\", \"buen día\", \"¿cómo andás?\", \"gracias\", \"chau\"."
+            },
+            {
+              "category": "otro",
+              "description": "Temas sin ninguna relación con ZOCO ni con medios de pago: clima, deportes, política, cultura general, pedidos de chistes o recetas. Ejemplos: \"¿quién ganó el mundial?\", \"contame un chiste\", \"¿cómo está el clima?\"."
+            },
+            {
+              "category": "metricas",
+              "description": "El usuario pregunta por estadísticas de uso del propio asistente: cuántas consultas hubo, qué se pregunta más, cuántas derivaciones, tasa de resolución. Ejemplos: \"¿cuántas consultas hubo hoy?\", \"¿qué preguntan más?\", \"mostrame las métricas\". NO incluye consultas sobre productos ni costos de ZOCO."
+            }
+          ]
+        },
+        "options": {
+          "fallback": "other"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.textClassifier",
+      "typeVersion": 1.1,
+      "position": [
+        -1440,
+        -16
+      ],
+      "id": "39453f7f-3e8f-48cf-ab57-1a92607cf1c6",
+      "name": "Text Classifier"
+    },
+    {
+      "parameters": {
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1376,
+        336
+      ],
+      "id": "e8c41b9e-6102-430e-ab1e-46d591247b2f",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PNKux6VMYdXM52ti",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "temperature": 0.2,
+          "safetySettings": {
+            "values": [
+              {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -672,
+        -448
+      ],
+      "id": "2e629464-2305-4b8d-a2dd-07df80ff88e7",
+      "name": "Google Gemini Chat Model2",
+      "notesInFlow": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PNKux6VMYdXM52ti",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-001"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        -240
+      ],
+      "id": "a50555ca-6ad4-403a-8973-e7a8624763b2",
+      "name": "Embeddings Google Gemini1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PNKux6VMYdXM52ti",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "USO OBLIGATORIO Y EXCLUSIVO. Contiene toda la base de conocimiento oficial, preguntas frecuentes, costos, QR y beneficios de ZOCO Pagos. Debes llamarla siempre.",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "topK": 8,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        -416,
+        -448
+      ],
+      "id": "7ac061fe-549c-475d-b331-f9f830c85fb6",
+      "name": "buscar_informacion_zoco1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "6Zs47pHzaq5HIG5t",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Sos el Asistente de ZOCO Pagos, atendiendo una CONSULTA DE COSTOS.\n\n## Regla dominante\n\nNunca calcules, estimes ni confirmes cifras para el caso del usuario:\nmontos, comisiones, porcentajes, netos a liquidar ni fechas exactas de\nacreditación. No hagas cuentas aunque te den todos los datos, aunque\ninsistan, y aunque el número salga de las fuentes.\n\nLos valores del simulador son de demostración: no incluyen impuestos ni\nretenciones y no son las condiciones reales de ningún comercio. Si entre\nlos documentos aparecen porcentajes, mencionalos solo como referencia\norientativa, nunca como el costo del usuario.\n\n## Herramientas disponibles\n\nExisten exactamente dos, y estos son sus nombres:\n- buscar_informacion_zoco1\n- Derivar_a_asesor1\n\nNo intentes llamar ninguna otra.\n\n## Procedimiento\n\n1. Llamá a buscar_informacion_zoco1 UNA sola vez.\n2. Evaluá lo que devolvió y decidí de una:\n   - Si responde la consulta → respondé con eso.\n   - Si NO responde → pasá directo al punto 4. No vuelvas a buscar con\n     otras palabras.\n3. Nunca hagas más de dos búsquedas en total. Si la segunda tampoco\n   sirve, derivá.\n4. Para derivar: llamá a Derivar_a_asesor1 una vez, decí con claridad que\n   no tenés esa información en las fuentes oficiales de ZOCO, y ofrecé:\n   WhatsApp https://wa.me/5493813545650\n   o https://www.zocopagos.com/pagos/contactanos\n\nDespués de llamar a Derivar_a_asesor1, escribí la respuesta final y\nterminá. No llames más herramientas.\n\n## Contenido de la respuesta\n\nExplicá de qué depende el costo según las fuentes: medio de pago, plan de\nacreditación, cantidad de cuotas, rubro, promociones vigentes y normativa\naplicable. Aclarás que no podés dar una cifra exacta y por qué. Mencioná\nel simulador (https://www.zocopagos.com/pagos/simulador) como referencia\norientativa y derivá a un asesor.\n\nCerrá con [Fuente: URL], tomando la URL de los metadatos del fragmento\nusado.\n\nRespondé solo con lo que devuelva la herramienta. Nunca uses conocimiento\npropio sobre fintech ni competidores.\n\n## Tono\n\nEspañol rioplatense, profesional y breve. Usá el historial para resolver\nreferencias (\"¿y cuánto cuesta?\" se refiere a lo último que se habló).",
+          "maxIterations": 5
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -624,
+        -672
+      ],
+      "id": "ccca39c4-54dc-4724-a213-c9f37f6de085",
+      "name": "Agente de precios",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9191425f-0d3c-4712-a762-51e42bb6b4c0",
+              "name": "output",
+              "value": "Te paso el contacto directo de ZOCO para que un asesor te ayude:  WhatsApp: https://wa.me/5493813545650  También podés dejar tus datos en https://www.zocopagos.com/pagos/contactanos",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -48,
+        608
+      ],
+      "id": "c4c71a5e-8cb9-465a-89e1-cb715774cf99",
+      "name": "Respuesta Contacto"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9191425f-0d3c-4712-a762-51e42bb6b4c0",
+              "name": "output",
+              "value": "=Soy el asistente de ZOCO Pagos y solo puedo ayudarte con consultas sobre POS, medios de pago, costos y funcionamiento del servicio. ¿Te puedo ayudar con algo de eso?",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -480,
+        544
+      ],
+      "id": "5cd94133-ef4d-44cc-90d8-bad596450404",
+      "name": "Respuesta Fuera de Tema"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"respuesta_cliente\": \"Aquí irá el texto de la respuesta que ve el usuario.\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -96,
+        64
+      ],
+      "id": "24e840f1-e600-4eee-82fe-1153d7f0216a",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrae el texto del Structured Output Parser para que el chat lo lea\nconst item = items[0].json;\nlet textResponse = \"\";\n\n// Verifica si viene dentro de la clave que definimos u otro formato\nif (item.respuesta_cliente) {\n    textResponse = item.respuesta_cliente;\n} else if (typeof item.output === 'string') {\n    textResponse = item.output;\n} else if (item.output && item.output.respuesta_cliente) {\n    textResponse = item.output.respuesta_cliente;\n} else {\n    textResponse = JSON.stringify(item);\n}\n\nreturn [{ json: { text: textResponse } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        -32
+      ],
+      "id": "0f02d761-d303-4ae4-a227-3f0acd2706a6",
+      "name": "Retornar Respuesta"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrae el texto del Structured Output Parser para que el chat lo lea\nconst item = items[0].json;\nlet textResponse = \"\";\n\n// Verifica si viene dentro de la clave que definimos u otro formato\nif (item.respuesta_cliente) {\n    textResponse = item.respuesta_cliente;\n} else if (typeof item.output === 'string') {\n    textResponse = item.output;\n} else if (item.output && item.output.respuesta_cliente) {\n    textResponse = item.output.respuesta_cliente;\n} else {\n    textResponse = JSON.stringify(item);\n}\n\nreturn [{ json: { text: textResponse } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        -672
+      ],
+      "id": "4f0d4bfc-ee8a-4179-8793-aea332886cb8",
+      "name": "Retornar Respuesta1"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Usá esta herramienta cuando NO puedas responder la consulta del usuario\ncon la información disponible en buscar_informacion_zoco, o cuando el\nusuario necesite una gestión que requiere intervención humana (cotización\nformal, reclamo, estado de una cuenta). Registra el caso para que un\nasesor de ZOCO le responda.",
+        "tableId": "derivaciones",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $json.sessionId }}"
+            },
+            {
+              "fieldId": "consulta",
+              "fieldValue": "=\t{{ $fromAI('consulta', 'La consulta textual del usuario que no se pudo responder') }}"
+            },
+            {
+              "fieldId": "motivo",
+              "fieldValue": "=\t{{ $fromAI('motivo', 'Por qué no se pudo responder: sin información, requiere cotización, reclamo, etc.') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        160
+      ],
+      "id": "732ab01f-f681-4566-a7b1-616746aa39aa",
+      "name": "Derivar a asesor",
+      "credentials": {
+        "supabaseApi": {
+          "id": "6Zs47pHzaq5HIG5t",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Usá esta herramienta cuando NO puedas responder la consulta del usuario\ncon la información disponible en buscar_informacion_zoco, o cuando el\nusuario necesite una gestión que requiere intervención humana (cotización\nformal, reclamo, estado de una cuenta). Registra el caso para que un\nasesor de ZOCO le responda.",
+        "tableId": "derivaciones",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $json.sessionId }}"
+            },
+            {
+              "fieldId": "consulta",
+              "fieldValue": "=\t{{ $fromAI('consulta', 'La consulta textual del usuario que no se pudo responder') }}"
+            },
+            {
+              "fieldId": "motivo",
+              "fieldValue": "=\t{{ $fromAI('motivo', 'Por qué no se pudo responder: sin información, requiere cotización, reclamo, etc.') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        -480
+      ],
+      "id": "96c2c2ba-bd1c-4647-841a-96dc3a9f1fd1",
+      "name": "Derivar a asesor1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "6Zs47pHzaq5HIG5t",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zoco-agente",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1968,
+        224
+      ],
+      "id": "9b137e78-5f33-4d9b-9f63-e7c0f2bc15e2",
+      "name": "Webhook",
+      "webhookId": "b08394a2-bae0-4d12-af7c-358ba25defbf"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9191425f-0d3c-4712-a762-51e42bb6b4c0",
+              "name": "chatInput",
+              "value": "={{ $json.body?.chatInput || $json.chatInput || $json.message.text}}",
+              "type": "string"
+            },
+            {
+              "id": "f32f8bd4-0d76-4c08-a6d4-91f60d9c7030",
+              "name": "sessionId",
+              "value": "={{ $json.body?.sessionId || $json.sessionId || $json.message.chat.id }}",
+              "type": "string"
+            },
+            {
+              "id": "dbfd9791-5df7-4981-93ea-f0cedddf4f16",
+              "name": "origen",
+              "value": "={{ $json.message ? 'telegram' : ($json.body ? 'api' : 'chat') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1680,
+        112
+      ],
+      "id": "425cf7ca-7690-4545-a1f8-b15ff6dc129d",
+      "name": "Parametrizacion chatInput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const entrada = $('Parametrizacion chatInput').first().json;\n\nconst intencion =\n  $('Agente de precios').isExecuted     ? 'precios'   :\n  $('Agente').isExecuted                ? 'consultas' :\n  $('Respuesta Contacto').isExecuted    ? 'humano'    :\n                                        'otro';\n\nconst derivado =\n  $('Derivar a asesor').isExecuted ||\n  $('Derivar a asesor1').isExecuted ||\n  $('Registrar Derivacion').isExecuted;\n\nconst i = $input.first().json;\n\n// Función que escapa todos los caracteres especiales que exige Telegram MarkdownV2\nfunction escapeMarkdownV2(text) {\n  if (!text) return '';\n  // Escapa los caracteres reservados: _ * [ ] ( ) ~ ` > # + - = | { } . !\n  return text.replace(/[_*[\\]()~`>#+\\-=|{}.!]/g, '\\\\$&');\n}\n\nreturn [{\n  json: {\n    session_id: entrada.sessionId || 'sin-sesion',\n    canal: $('Webhook').isExecuted ? 'api' : 'chat',\n    intencion,\n    pregunta: entrada.chatInput,\n    respuesta: escapeMarkdownV2(i.output || i.text || i.respuesta || ''),\n    derivado\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        64
+      ],
+      "id": "98158286-d063-46bd-a446-3c08f107a439",
+      "name": "Preparar Log"
+    },
+    {
+      "parameters": {
+        "tableId": "conversaciones",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        624,
+        64
+      ],
+      "id": "cac7932f-3797-40ef-af4c-7d604786f81c",
+      "name": "Registrar Consulta",
+      "credentials": {
+        "supabaseApi": {
+          "id": "6Zs47pHzaq5HIG5t",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { output: $json.respuesta } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        64
+      ],
+      "id": "54778486-2959-48b7-a2f0-74184d0d24f6",
+      "name": "devolver respuesta"
+    },
+    {
+      "parameters": {
+        "tableId": "derivaciones",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $('Parametrizacion chatInput').first().json.sessionId }}"
+            },
+            {
+              "fieldId": "=consulta",
+              "fieldValue": "=\t{{ $('Parametrizacion chatInput').first().json.chatInput }}"
+            },
+            {
+              "fieldId": "motivo",
+              "fieldValue": "Pedido explícito de contacto humano"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        768
+      ],
+      "id": "ddc9856b-2bf6-48a7-b426-25035fa0fd0a",
+      "name": "Registrar Derivacion",
+      "credentials": {
+        "supabaseApi": {
+          "id": "6Zs47pHzaq5HIG5t",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1968,
+        -160
+      ],
+      "id": "678bdc57-305b-4cf9-ac95-e7cb8e18d6b4",
+      "name": "Telegram Trigger",
+      "webhookId": "19c1c939-ee54-4850-a300-5a99d704b429",
+      "credentials": {
+        "telegramApi": {
+          "id": "WsKViowJ3H5Zk4id",
+          "name": "ZOCO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "2P1HsFQ6yTQUKrBN",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/2P1HsFQ6yTQUKrBN",
+          "cachedResultName": "Metricas"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "pregunta": "={{ $json.chatInput }}",
+            "sesionId": "={{ $json.sessionId }}"
+          },
+          "matchingColumns": [
+            "pregunta"
+          ],
+          "schema": [
+            {
+              "id": "pregunta",
+              "displayName": "pregunta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sesionId",
+              "displayName": "sesionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1136,
+        448
+      ],
+      "id": "4b4906c6-3edc-466d-8d8c-89d79c441173",
+      "name": "Metricas"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Preparar Log').item.json.session_id }}",
+        "text": "={{ $('Preparar Log').item.json.respuesta }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "MarkdownV2"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1312,
+        -48
+      ],
+      "id": "78ff6f74-e8bd-4a2d-b6df-c3c0516a9fb5",
+      "name": "Send a text message",
+      "webhookId": "2fd88d51-2a8e-41e1-992d-d30269bbd95a",
+      "credentials": {
+        "telegramApi": {
+          "id": "WsKViowJ3H5Zk4id",
+          "name": "ZOCO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "723f118e-c9f9-45df-9970-0602344be9b3",
+              "leftValue": "={{ $('Parametrizacion chatInput').first().json.origen }}",
+              "rightValue": "telegram",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        64
+      ],
+      "id": "bcaf8975-3d4f-4dbf-ba37-d026889a256f",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"respuesta_cliente\": \"Aquí irá el texto de la respuesta que ve el usuario.\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -96,
+        -304
+      ],
+      "id": "c388c100-e0c8-4846-ac44-1ea7fde86693",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    output: $input.first().json.output\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        144
+      ],
+      "id": "f146ef2b-c174-4bb5-b0f6-87d9bc5ce00b",
+      "name": "Retornar Respuesta2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Parametrizacion chatInput",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente",
+            "type": "ai_memory",
+            "index": 0
+          },
+          {
+            "node": "Agente de precios",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "buscar_informacion_zoco",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_informacion_zoco": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente": {
+      "main": [
+        [
+          {
+            "node": "Retornar Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Text Classifier",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente de precios",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "buscar_informacion_zoco1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_informacion_zoco1": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de precios",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Classifier": {
+      "main": [
+        [
+          {
+            "node": "Agente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agente de precios",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Derivacion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Fuera de Tema",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Metricas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Fuera de Tema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Agente",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente de precios": {
+      "main": [
+        [
+          {
+            "node": "Retornar Respuesta1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Derivar a asesor": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Derivar a asesor1": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de precios",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parametrizacion chatInput",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parametrizacion chatInput": {
+      "main": [
+        [
+          {
+            "node": "Text Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Log": {
+      "main": [
+        [
+          {
+            "node": "Registrar Consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retornar Respuesta1": {
+      "main": [
+        [
+          {
+            "node": "Preparar Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retornar Respuesta": {
+      "main": [
+        [
+          {
+            "node": "Preparar Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Fuera de Tema": {
+      "main": [
+        [
+          {
+            "node": "Preparar Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Contacto": {
+      "main": [
+        [
+          {
+            "node": "Preparar Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Consulta": {
+      "main": [
+        [
+          {
+            "node": "devolver respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Derivacion": {
+      "main": [
+        [
+          {
+            "node": "Respuesta Contacto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parametrizacion chatInput",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "devolver respuesta": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retornar Respuesta2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Agente de precios",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "lAEijZtgULTP7o4v"
+  },
+  "versionId": "a467d301-392c-4c17-b395-ad8132e61a5c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e8324baa5666528e6dad947d93b17557a48d539b623c4275d1d1caf0527ce287"
+  },
+  "id": "Gm8XEZUJo3XYdlFJ",
+  "tags": []
+}

@@ -1,0 +1,321 @@
+{
+  "name": "Agente Ingesta  ZOCO",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const urls = [ //array de las URL de ZOCO\n  {\n    url: \"https://www.zocopagos.com/\",\n    seccion: \"Inicio y Preguntas Frecuentes Generales\"\n  },\n  {\n    url: \"https://organizador.zocotickets.com/terminos-y-condiciones-organizador\",\n    seccion: \"Terminos y condiciones\"\n  },\n    {\n    url: \"https://organizador.zocotickets.com/politica-de-privacidad\",\n    seccion: \"Politica de Privacidad\"\n  },\n   { url: \"https://zocopagos.com/pagos/simulador#pagos-simulador\", seccion: \"Simulador de costos\" },\n];\n// Mapeo y return de las URL en json\n\n\nconst script = `\n(async () => {\n  const sleep = ms => new Promise(r => setTimeout(r, ms));\n\n  const titulos = [...document.querySelectorAll('*')].filter(el => {\n    const t = (el.textContent || '').trim();\n    if (!t.startsWith('¿')) return false;\n    if (el.closest('a') || el.closest('footer')) return false;\n    if ([...el.children].some(c => (c.textContent || '').trim().startsWith('¿'))) return false;\n    return true;\n  });\n\n  const faqs = [];\n  for (const t of titulos) {\n    t.click();\n    await sleep(800);\n    const cont = t.closest('[class*=\"accordion\"], [class*=\"faq\"], [class*=\"item\"], li') || t.parentElement;\n    const pregunta = (t.innerText || '').trim();\n    const bloque = (cont.innerText || '').trim();\n    faqs.push({ pregunta, respuesta: bloque.replace(pregunta, '').trim() });\n  }\n  return faqs;\n})()\n`;\nreturn urls.map(item => ({\n  json: {\n    url: item.url,\n    seccion: item.seccion,\n    body: JSON.stringify({\n      url: item.url,\n      formats: [\"markdown\"],\n      onlyMainContent: false,\n      waitFor: 4000,\n      actions: [\n        { type: \"executeJavascript\", script: script },\n        { type: \"wait\", milliseconds: 1000 }\n      ]\n    })\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        0
+      ],
+      "id": "bc5029dd-d84c-40db-87be-95af58b3d940",
+      "name": "Configurar URLs de ZOCO"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.firecrawl.dev/v1/scrape",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Configurar URLs de ZOCO').item.json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        32,
+        80
+      ],
+      "id": "5e7b958f-3152-4050-ba6c-4255cb11907b",
+      "name": "Scraper Web (Firecrawl API)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Ljoag9l7zxMZlBXX",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- limpieza de markdown ---\nfunction limpiar(txt) {\n  return txt\n    .replace(/!\\[[^\\]]*\\]\\([^)]*\\)/g, '')        // imágenes (incluye data URIs)\n    .replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')     // links -> solo el texto\n    .replace(/data:image\\/[^\\s)]+/g, '')         // restos de data URI sueltos\n    .replace(/[ \\t]+/g, ' ')\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n}\n\n// --- corta el footer antes de procesar (ahí viven los SVG codificados) ---\nfunction cortarFooter(md) {\n  const marcas = [\n    'Preciso. Sencillo. Seguro.',\n    'Copyright © ZOCO',\n    '](https://www.facebook.com/'\n  ];\n  let fin = md.length;\n  for (const m of marcas) {\n    const i = md.indexOf(m);\n    if (i !== -1 && i < fin) fin = i;\n  }\n  return md.slice(0, fin);\n}\n\n// --- detecta chunks que son basura URL-encoded ---\nfunction esBasura(txt) {\n  return (txt.match(/%/g) || []).length > 15;\n}\n\nconst salida = [];\n\nfor (const item of $input.all()) {\n  const d = item.json.data || {};\n  const md = cortarFooter(d.markdown || '').trim();\n  if (!md) continue;\n\n  const url = d.metadata?.sourceURL || d.url || '';\n  const seccion = item.json.seccion || d.metadata?.title || 'ZOCO';\n  const esSimulador = /simulador/i.test(url);\n\n  const aviso = esSimulador\n    ? 'ADVERTENCIA OFICIAL: el simulador de ZOCO usa tasas únicamente de demostración. Los valores que muestra NO son las condiciones reales del comercio y no incluyen impuestos locales ni retenciones. Las tasas reales las define un asesor comercial según el plan, rubro y condiciones vigentes.\\n\\n'\n    : '';\n\n  // ---------- A) Preguntas frecuentes (home) ----------\n  const inicio = md.indexOf('## Preguntasfrecuentes');\n  if (inicio !== -1) {\n    let bloque = md.slice(inicio + '## Preguntasfrecuentes'.length);\n    const fin = bloque.indexOf('![App ZOCO');\n    if (fin !== -1) bloque = bloque.slice(0, fin);\n\n    const partes = bloque.split(/\\n\\s*\\n/).map(p => p.trim()).filter(Boolean);\n    const faqs = [];\n    let actual = null;\n\n    for (const p of partes) {\n      const esPregunta = p.startsWith('¿') && p.endsWith('?') && !p.includes('\\n');\n      if (esPregunta) {\n        actual = { pregunta: p, respuesta: [] };\n        faqs.push(actual);\n      } else if (actual) {\n        actual.respuesta.push(p);\n      }\n    }\n\n    for (const f of faqs) {\n      const respuesta = limpiar(f.respuesta.join('\\n\\n'));\n      if (respuesta.length < 20 || esBasura(respuesta)) continue;\n      salida.push({\n        json: {\n          contenido: `${f.pregunta}\\n\\n${respuesta}`,\n          tipo: 'faq',\n          pregunta: f.pregunta,\n          seccion,\n          url\n        }\n      });\n    }\n    continue;\n  }\n\n  // ---------- D) FAQs sueltas (simulador: preguntas sin encabezado) ----------\n  const partesGlobal = md.split(/\\n\\s*\\n/).map(p => p.trim()).filter(Boolean);\n  const hayPreguntas = partesGlobal.some(\n    p => p.startsWith('¿') && p.endsWith('?') && !p.includes('\\n')\n  );\n\n  if (hayPreguntas) {\n    const faqs = [];\n    let actual = null;\n\n    for (const p of partesGlobal) {\n      const esPregunta = p.startsWith('¿') && p.endsWith('?') && !p.includes('\\n');\n      if (esPregunta) {\n        actual = { pregunta: p, respuesta: [] };\n        faqs.push(actual);\n      } else if (actual) {\n        actual.respuesta.push(p);\n      }\n    }\n\n    for (const f of faqs) {\n      const respuesta = limpiar(f.respuesta.join('\\n\\n'));\n      if (respuesta.length < 20 || esBasura(respuesta)) continue;\n      salida.push({\n        json: {\n          contenido: `${f.pregunta}\\n\\n${aviso}${respuesta}`,\n          tipo: esSimulador ? 'simulador' : 'faq',\n          pregunta: f.pregunta,\n          seccion,\n          url\n        }\n      });\n    }\n    continue;\n  }\n\n  const primerH2 = md.indexOf('\\n## ');\n\n  // ---------- C) Páginas sin encabezados ni FAQs: un solo chunk ----------\n  if (primerH2 === -1) {\n    const texto = limpiar(md);\n    if (texto.length >= 80 && /[a-záéíóúñ]{4,}/i.test(texto) && !esBasura(texto)) {\n      salida.push({\n        json: {\n          contenido: `${seccion}\\n\\n${aviso}${texto}`,\n          tipo: esSimulador ? 'simulador' : 'pagina',\n          titulo: seccion,\n          seccion,\n          url\n        }\n      });\n    }\n    continue;\n  }\n\n  // ---------- B) Documentos legales: chunk por sección ----------\n  const cuerpo = md.slice(primerH2);\n  const secciones = cuerpo.split(/\\n(?=##\\s)/);\n\n  for (const s of secciones) {\n    const texto = limpiar(s);\n    if (texto.length < 120) continue;\n    if (!/[a-záéíóúñ]{4,}/i.test(texto)) continue;\n    if (esBasura(texto)) continue;\n\n    const lineas = texto.split('\\n');\n    const titulo = (lineas[0] || '').replace(/^#+\\s*/, '').replace(/\\\\/g, '').trim();\n    const resto = lineas.slice(1).join('\\n').trim();\n    if (!resto) continue;\n\n    const MAX = 1200;\n    const parrafos = resto.split(/\\n\\s*\\n/);\n    let buffer = '';\n\n    const emitir = () => {\n      if (!buffer.trim()) return;\n      salida.push({\n        json: {\n          contenido: `${titulo}\\n\\n${buffer.trim()}`,\n          tipo: 'documento',\n          titulo,\n          seccion,\n          url\n        }\n      });\n      buffer = '';\n    };\n\n    for (const p of parrafos) {\n      if ((buffer + '\\n\\n' + p).length > MAX) emitir();\n      buffer += (buffer ? '\\n\\n' : '') + p;\n    }\n    emitir();\n  }\n}\n\nreturn salida;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        80
+      ],
+      "id": "d6bde770-1c01-45a4-b246-9baeb161ba8c",
+      "name": "Parsear FAQs y Limpiar Markdown"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        80
+      ],
+      "id": "58a334b9-3878-4216-a07e-99b809990ceb",
+      "name": "Guardar en Supabase (pgvector)",
+      "credentials": {
+        "supabaseApi": {
+          "id": "6Zs47pHzaq5HIG5t",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.contenido }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "seccion",
+                "value": "={{ $json.seccion }}"
+              },
+              {
+                "name": "url",
+                "value": "={{ $json.url }}"
+              },
+              {
+                "name": "tipo",
+                "value": "={{ $json.tipo }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        608,
+        336
+      ],
+      "id": "23ce47f4-bbad-4fb3-9355-3e9afecaf3b3",
+      "name": "Mapear Markdown y Metadatos"
+    },
+    {
+      "parameters": {
+        "content": "ETAPA 1: Ingesta Automatizada y Limpieza de Documentos (RAG)",
+        "height": 112,
+        "width": 160
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        -96
+      ],
+      "typeVersion": 1,
+      "id": "ac020011-4ddc-4253-9bb6-2c4a083eff4b",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "",
+        "height": 592,
+        "width": 1600,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -688,
+        -112
+      ],
+      "typeVersion": 1,
+      "id": "64c362b2-283c-4a7e-a9b7-3ccb57262777",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 3
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -640,
+        0
+      ],
+      "id": "d02e525c-6f7f-45cc-bb3a-ae2fc128c4c8",
+      "name": "Schedule Trigger Weeks"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "documents",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "gt",
+              "keyValue": "0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        0
+      ],
+      "id": "275f2f02-4082-40c2-ae4e-c3ffa06f6154",
+      "name": "Delete a row",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "6Zs47pHzaq5HIG5t",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-001"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        432,
+        336
+      ],
+      "id": "b16d01fe-dfa9-43c5-a1aa-c7ea13fc7230",
+      "name": "Gemini Embeddings",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PNKux6VMYdXM52ti",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Configurar URLs de ZOCO": {
+      "main": [
+        [
+          {
+            "node": "Scraper Web (Firecrawl API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scraper Web (Firecrawl API)": {
+      "main": [
+        [
+          {
+            "node": "Parsear FAQs y Limpiar Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear FAQs y Limpiar Markdown": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Supabase (pgvector)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mapear Markdown y Metadatos": {
+      "ai_document": [
+        [
+          {
+            "node": "Guardar en Supabase (pgvector)",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger Weeks": {
+      "main": [
+        [
+          {
+            "node": "Delete a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete a row": {
+      "main": [
+        [
+          {
+            "node": "Configurar URLs de ZOCO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Guardar en Supabase (pgvector)",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "lAEijZtgULTP7o4v",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "2ff0cd93-66eb-4a43-971a-f1961893acad",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e8324baa5666528e6dad947d93b17557a48d539b623c4275d1d1caf0527ce287"
+  },
+  "id": "ZMdQnGs1sVUiiXu3",
+  "tags": []
+}
