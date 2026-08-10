@@ -466,3 +466,8 @@ Resiste también las dos variantes difíciles: la insistencia
 |---|---|
 | Tratamiento de errores | Salidas de error en los agentes con mensaje al usuario + workflow de notificación al operador |
 | Observabilidad y logs | Tabla `conversaciones` con canal, intención y derivación; `derivaciones` con el motivo; alertas de error por Telegram |
+
+
+
+### Video
+https://youtu.be/G0TsEC-w15U
