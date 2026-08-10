@@ -1,0 +1,66 @@
+{
+  "name": "Workflow Error ZOCO",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        -16
+      ],
+      "id": "21091d0b-01fd-40a9-8e94-dd933f479a3b",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "chatId": "=7242968687",
+        "text": "=\"🚨 El flujo {{ $json.workflow.name }} falló en el nodo {{ $json.execution.lastNodeExecuted }}. Error: {{ $json.execution.error.message }}\"",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -224,
+        -16
+      ],
+      "id": "05bdb64a-0511-4617-ba5c-6914368d0598",
+      "name": "Notificacion error",
+      "webhookId": "4f0cf86c-4766-4cca-b8a7-e6bb86538876",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "WsKViowJ3H5Zk4id",
+          "name": "ZOCO"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Notificacion error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9e8f388c-21e6-44af-8bec-c7ee77efab78",
+  "meta": {
+    "instanceId": "e8324baa5666528e6dad947d93b17557a48d539b623c4275d1d1caf0527ce287"
+  },
+  "id": "lAEijZtgULTP7o4v",
+  "tags": []
+}

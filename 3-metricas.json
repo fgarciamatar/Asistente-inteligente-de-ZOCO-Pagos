@@ -1,0 +1,402 @@
+{
+  "name": "Metricas",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "pregunta"
+            },
+            {
+              "name": "sesionId"
+            }
+          ]
+        }
+      },
+      "id": "c055762a-8fe7-4141-a639-df2372f30060",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -480,
+        96
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "b5942df6-0160-4ef7-965d-57583acdc8aa",
+      "name": "Replace me with your logic",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        720,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=11",
+        "contextWindowLength": 6
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        256,
+        480
+      ],
+      "id": "3da5d1fc-c993-41f5-9889-c0da437b1588",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "temperature": 0.2,
+          "safetySettings": {
+            "values": [
+              {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE"
+              },
+              {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        112,
+        304
+      ],
+      "id": "eaa8996e-31e0-4e9b-8771-38ff6d730e32",
+      "name": "Google Gemini Chat Model2",
+      "notesInFlow": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PNKux6VMYdXM52ti",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('When Executed by Another Workflow').first().json.sesionId }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        80
+      ],
+      "id": "494f2fe6-3b40-4bd9-82e6-85c17916fddc",
+      "name": "Send a text message",
+      "webhookId": "17714ae4-a50b-46be-9c25-6a5bebe7f279",
+      "credentials": {
+        "telegramApi": {
+          "id": "WsKViowJ3H5Zk4id",
+          "name": "ZOCO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.pregunta || $json.message.text }}",
+        "options": {
+          "systemMessage": "=Sos el analista de métricas del asistente de ZOCO Pagos. Respondés\npreguntas sobre el uso del bot consultando la base de datos.\n\n## Esquema disponible\n\nconversaciones\n  id            bigint\n  creado_en     timestamptz\n  session_id    text\n  canal         text      -- 'chat' o 'api'\n  intencion     text      -- 'consultas', 'precios', 'humano', 'otro'\n  pregunta      text\n  respuesta     text\n  derivado      boolean   -- true si se derivó a un asesor\n\nderivaciones\n  id            bigint\n  creado_en     timestamptz\n  session_id    text\n  consulta      text\n  motivo        text\n\n## Cómo trabajar\n\n1. Traducí la pregunta a una consulta SQL y ejecutala con la herramienta.\n2. Escribí SOLO sentencias SELECT. Nunca INSERT, UPDATE, DELETE ni DROP.\n3. Limitá los resultados a 20 filas salvo que pidan más.\n4. Presentá los números de forma legible, no como una tabla cruda.\n5. Si el resultado viene vacío, decilo: no hay datos para ese período.\n\nRespondé en español rioplatense, breve y con los números concretos.\nAgregá una observación útil cuando el dato lo amerite.\n\nTono profesional, directo y en texto plano. Sin muletillas, sin \"che\",\nsin diminutivos. Reportás datos, no charlás.\n\nNo uses Markdown: nada de asteriscos, guiones bajos ni almohadillas.\nPara listas usá guiones simples y saltos de línea.",
+          "maxIterations": 15
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        96,
+        80
+      ],
+      "id": "5cb857d4-b74a-4270-8677-25851360fc88",
+      "name": "Analista de Métricas",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Ejecuta consultas SQL de solo lectura sobre las métricas del asistente de ZOCO. Usala para responder cualquier pregunta sobre volumen de consultas, tipos de intención, derivaciones o tendencias.",
+        "operation": "executeQuery",
+        "query": "{{ $fromAI('query', 'Consulta SQL SELECT sobre public.conversaciones o public.derivaciones para responder la pregunta del usuario') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        336,
+        288
+      ],
+      "id": "732b97b8-65bf-47d2-8751-7117fe2b3b63",
+      "name": "consultar_metricas",
+      "credentials": {
+        "postgres": {
+          "id": "Vfb1mkzqSTNaQoeL",
+          "name": "Postgres ZOCO10"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ae435da2-8afe-4b7f-8dce-003b5482cedc",
+              "leftValue": "={{ [7242968687].includes(Number($json.sesionId)) }}",
+              "rightValue": "={{ [7242968687, 111111111].includes($json.message.chat.id) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -208,
+        96
+      ],
+      "id": "c73f6c90-c5f7-4967-9822-58cbf913ce31",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('When Executed by Another Workflow').item.json.sessionId }}",
+        "text": "=No tenes acceso a esta seccion.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        320
+      ],
+      "id": "ab1fdc24-bf34-464c-9a06-9fd4b4ed8be3",
+      "name": "Send a text message1",
+      "webhookId": "17714ae4-a50b-46be-9c25-6a5bebe7f279",
+      "credentials": {
+        "telegramApi": {
+          "id": "WsKViowJ3H5Zk4id",
+          "name": "ZOCO"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ae435da2-8afe-4b7f-8dce-003b5482cedc",
+              "leftValue": "={{ /^\\d+$/.test($json.sessionId) }}",
+              "rightValue": "={{ [7242968687, 111111111].includes($json.message.chat.id) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -464,
+        336
+      ],
+      "id": "3f8130c2-5946-4958-9d65-58aa224aa4b7",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    output: \"No tenes acceso a esta seccion.\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        496
+      ],
+      "id": "c632264c-7c88-4633-a743-f21981892e2c",
+      "name": "Return respuesta"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "chatInput": "Me das las métricas de hoy",
+          "sessionId": "47a57b7872724ec2a6a3d44fcce79b5b"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Analista de Métricas",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analista de Métricas",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analista de Métricas": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_metricas": {
+      "ai_tool": [
+        [
+          {
+            "node": "Analista de Métricas",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Analista de Métricas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "Replace me with your logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message1": {
+      "main": [
+        []
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "lAEijZtgULTP7o4v",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "311b24a9-b1e9-40af-a237-85202d43ec30",
+  "meta": {
+    "instanceId": "e8324baa5666528e6dad947d93b17557a48d539b623c4275d1d1caf0527ce287"
+  },
+  "id": "2P1HsFQ6yTQUKrBN",
+  "tags": []
+}
