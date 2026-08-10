@@ -41,6 +41,7 @@ flowchart LR
         W1["Workflow 1<br/>Ingesta"]
         W2["Workflow 2<br/>Asistente"]
         W3["Workflow 3<br/>Métricas"]
+W4["Workflow 4<br/>Manejo de errores"]
     end
 
     subgraph SUPA["Supabase · PostgreSQL"]
@@ -65,6 +66,11 @@ flowchart LR
     W2 -->|registro de cada consulta| LOGS
     W3 -->|SQL solo lectura| LOGS
 
+W1 -.error.-> W4
+    W2 -.error.-> W4
+    W3 -.error.-> W4
+    W4 -->|alerta| TG
+
     GEM -.->|LLM + embeddings| W1
     GEM -.->|LLM| W2
     GEM -.->|LLM| W3
@@ -73,7 +79,7 @@ flowchart LR
 
 | Servicio | Para qué se usa | Qué hay que obtener |
 |---|---|---|
-| [n8n](https://n8n.io) | Orquestación de los tres workflows | Instancia local o alojada |
+| [n8n](https://n8n.io) | Orquestación de los cuatros workflows | Instancia local o alojada |
 | [Supabase](https://supabase.com) | Base vectorial, logs y métricas | Proyecto nuevo (plan Free) |
 | [Firecrawl](https://firecrawl.dev) | Scraping con renderizado de JavaScript | API key |
 | [Google AI Studio](https://aistudio.google.com) | Gemini: LLM y embeddings | API key |
@@ -282,6 +288,7 @@ se configura como *Generic Credential Type → Header Auth*, con nombre
 | `workflows/1-ingesta.json` | Agente Ingesta ZOCO |
 | `workflows/2-asistente.json` | Agente Conversacional |
 | `workflows/3-metricas.json` | Métricas |
+| `workflows/4-errores.json` | Manejo de Errores |
 
 Después de importar, abrir cada nodo marcado en rojo y **asignar la
 credencial** correspondiente. Los IDs del repo no existen en otra instancia.
@@ -296,6 +303,13 @@ Tres cosas más que hay que ajustar a mano:
    cualquier mensaje al bot y mirando el INPUT del `Telegram Trigger`.
 3. **Header de Firecrawl.** Verificar que la credencial Header Auth quedó
    asignada en el nodo `Scraper Web`.
+4. **Error Workflow.** En cada uno de los otros tres workflows:
+   `...` → **Settings** → **Error Workflow** → seleccionar `Manejo de Errores`.
+   Sin esto el Error Trigger nunca se dispara. Además, en su nodo de Telegram
+   hay que poner el Chat ID propio como valor fijo: el Error Trigger no recibe
+   datos del usuario, así que no se puede resolver dinámicamente.
+
+
 
 ---
 
@@ -316,8 +330,13 @@ select count(*) from documents where content like '%20d=%';
 select count(*) from documents where metadata->>'tipo' = 'faq';
 ```
 
-Con eso verificado, poner los tres workflows en **Active**. La ingesta pasa a
-correr semanalmente y el asistente queda disponible en su URL pública.
+Con eso verificado, publicar los cuatro workflows. **El orden importa:** n8n
+exige que los sub-workflows estén publicados antes que el workflow que los
+referencia, así que va primero `Métricas` y después `Agente Conversacional`.
+
+El Error Workflow sólo se dispara en ejecuciones de producción — las que
+arrancan por webhook, schedule o un trigger activo. Las ejecuciones manuales
+desde el editor no lo activan.
 
 ## Uso
 
@@ -387,6 +406,26 @@ select consulta, motivo from derivaciones order by creado_en desc limit 20;
 Corre sola los lunes a las 3 AM. A demanda, ejecutar **Agente Ingesta ZOCO**
 desde el `Disparador Manual`.
 
+## Manejo de errores
+
+Dos capas independientes, con destinatarios distintos.
+
+**Hacia el usuario.** Los agentes tienen `On Error → Continue (using error
+output)`: ante un fallo del modelo o de una herramienta, la ejecución sigue
+por una rama que devuelve un mensaje claro con el contacto de WhatsApp, en
+lugar de dejar la consulta sin respuesta. Los nodos de registro
+(`Registrar Consulta`, `Derivar a asesor`) usan `Continue (using regular
+output)`: si Supabase no responde se pierde el log, pero nunca la respuesta
+al usuario.
+
+**Hacia el operador.** Un cuarto workflow con un `Error Trigger` recibe los
+fallos de los otros tres y notifica por Telegram con el nombre del workflow,
+el nodo que falló y el mensaje de error.
+
+`Max Iterations` está en 5 en ambos agentes: si no resolvieron en cinco
+vueltas no van a resolver, y conviene fallar rápido hacia el mensaje amable
+antes que dejar al usuario esperando.
+
 ## Cobertura de requisitos
 
 ### Desafío
@@ -429,3 +468,10 @@ incluyen impuestos ni retenciones, y deriva a un asesor registrando el caso.
 Resiste también las dos variantes difíciles: la insistencia
 (*"tirame un número aproximado"*) y el cálculo asistido
 (*"vi que débito es 3,19%, ¿entonces por $100.000 me cobran $3.190?"*).
+
+### Otros criterios de evaluación
+
+| Criterio | Cómo se cubre |
+|---|---|
+| Tratamiento de errores | Salidas de error en los agentes con mensaje al usuario + workflow de notificación al operador |
+| Observabilidad y logs | Tabla `conversaciones` con canal, intención y derivación; `derivaciones` con el motivo; alertas de error por Telegram |
